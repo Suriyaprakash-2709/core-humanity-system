@@ -1,5 +1,5 @@
-
 import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,15 +14,69 @@ import {
 } from '@/components/ui/select';
 import { BarChart3, FileText, Calendar, Download, Users } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
+import { reportService } from '@/services/reportService';
 
 const Reports = () => {
+  const queryClient = useQueryClient();
   const [reportType, setReportType] = useState('attendance');
   const [month, setMonth] = useState('05');
   const [year, setYear] = useState('2023');
   const [department, setDepartment] = useState('all');
+  const [format, setFormat] = useState('PDF');
+
+  // Query for recent reports
+  const { data: recentReportsData, isLoading: isLoadingRecentReports } = useQuery({
+    queryKey: ['recentReports'],
+    queryFn: reportService.getRecentReports,
+  });
+
+  // Mutation for generating report
+  const generateReportMutation = useMutation({
+    mutationFn: reportService.generateReport,
+    onSuccess: () => {
+      toast.success(`${getReportName()} generated successfully`);
+      queryClient.invalidateQueries({ queryKey: ['recentReports'] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to generate report: ${error.message}`);
+    }
+  });
+
+  // Mutation for scheduling report
+  const scheduleReportMutation = useMutation({
+    mutationFn: reportService.scheduleReport,
+    onSuccess: () => {
+      toast.success('Report schedule saved');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to schedule report: ${error.message}`);
+    }
+  });
 
   const handleGenerateReport = () => {
-    toast.success(`${getReportName()} generated successfully`);
+    generateReportMutation.mutate({
+      reportType,
+      month,
+      year,
+      department,
+      format
+    });
+  };
+
+  const handleScheduleReport = (type: string, frequency: string, day: string, recipients: string) => {
+    scheduleReportMutation.mutate({
+      reportType: type,
+      frequency,
+      day: parseInt(day),
+      recipients
+    });
+  };
+
+  const handleDownloadReport = (reportId: string) => {
+    // In a real application, this would download the report
+    reportService.downloadReport(reportId)
+      .then(() => toast.success('Report downloaded'))
+      .catch(() => toast.error('Failed to download report'));
   };
 
   const getReportName = () => {
@@ -46,6 +100,8 @@ const Reports = () => {
   };
 
   const ReportIcon = getReportIcon();
+  
+  const recentReports = recentReportsData?.data || [];
 
   const months = [
     { value: '01', label: 'January' },
@@ -164,14 +220,15 @@ const Reports = () => {
             <div className="space-y-1">
               <Label>Format</Label>
               <div className="flex space-x-2 mt-1">
-                {reportFormats.map((format) => (
+                {reportFormats.map((formatOption) => (
                   <Button
-                    key={format}
-                    variant="outline"
+                    key={formatOption}
+                    variant={format === formatOption ? "default" : "outline"}
                     size="sm"
                     className="flex-1"
+                    onClick={() => setFormat(formatOption)}
                   >
-                    {format}
+                    {formatOption}
                   </Button>
                 ))}
               </div>
@@ -181,9 +238,10 @@ const Reports = () => {
             <Button 
               className="w-full" 
               onClick={handleGenerateReport}
+              disabled={generateReportMutation.isPending}
             >
               <Download className="mr-2 h-4 w-4" />
-              Generate Report
+              {generateReportMutation.isPending ? 'Generating...' : 'Generate Report'}
             </Button>
           </CardFooter>
         </Card>
@@ -196,56 +254,37 @@ const Reports = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              {
-                name: 'Attendance Report - May 2023',
-                date: '2023-05-25',
-                type: 'attendance',
-                format: 'PDF',
-              },
-              {
-                name: 'Payroll Summary - April 2023',
-                date: '2023-05-10',
-                type: 'payroll',
-                format: 'Excel',
-              },
-              {
-                name: 'Leave Report - Q1 2023',
-                date: '2023-04-05',
-                type: 'leave',
-                format: 'PDF',
-              },
-              {
-                name: 'Employee Turnover Report',
-                date: '2023-03-28',
-                type: 'employee',
-                format: 'PDF',
-              },
-            ].map((report, index) => (
-              <div key={index} className="flex items-center justify-between py-2">
-                <div className="flex items-start gap-2">
-                  {report.type === 'attendance' && <Calendar className="h-4 w-4 mt-1" />}
-                  {report.type === 'payroll' && <FileText className="h-4 w-4 mt-1" />}
-                  {report.type === 'leave' && <Calendar className="h-4 w-4 mt-1" />}
-                  {report.type === 'employee' && <Users className="h-4 w-4 mt-1" />}
-                  <div>
-                    <div className="font-medium">{report.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Generated on {new Date(report.date).toLocaleDateString()}
+            {isLoadingRecentReports ? (
+              <div className="text-center py-4">Loading recent reports...</div>
+            ) : recentReports.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">No recent reports found</div>
+            ) : (
+              recentReports.map((report: any) => (
+                <div key={report.id} className="flex items-center justify-between py-2">
+                  <div className="flex items-start gap-2">
+                    {report.type === 'attendance' && <Calendar className="h-4 w-4 mt-1" />}
+                    {report.type === 'payroll' && <FileText className="h-4 w-4 mt-1" />}
+                    {report.type === 'leave' && <Calendar className="h-4 w-4 mt-1" />}
+                    {report.type === 'employee' && <Users className="h-4 w-4 mt-1" />}
+                    <div>
+                      <div className="font-medium">{report.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Generated on {new Date(report.date).toLocaleDateString()}
+                      </div>
                     </div>
                   </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => handleDownloadReport(report.id)}
+                  >
+                    <Download className="h-4 w-4" />
+                    <span className="sr-only">Download</span>
+                  </Button>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => toast.success(`${report.name} downloaded`)}
-                >
-                  <Download className="h-4 w-4" />
-                  <span className="sr-only">Download</span>
-                </Button>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
@@ -308,8 +347,8 @@ const Reports = () => {
               </div>
               
               <div className="flex justify-end">
-                <Button onClick={() => toast.success('Monthly report schedule saved')}>
-                  Save Schedule
+                <Button onClick={() => handleScheduleReport('attendance', 'monthly', '1', 'admin@example.com, hr@example.com')}>
+                  {scheduleReportMutation.isPending ? 'Saving...' : 'Save Schedule'}
                 </Button>
               </div>
             </TabsContent>

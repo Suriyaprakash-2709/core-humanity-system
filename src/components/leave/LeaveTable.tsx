@@ -28,93 +28,65 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/components/ui/sonner';
-
-// Mock leave data
-const mockLeaves: Leave[] = [
-  {
-    id: '1',
-    employeeId: '1',
-    employeeName: 'John Smith',
-    type: 'sick',
-    startDate: '2023-05-20',
-    endDate: '2023-05-21',
-    reason: 'Not feeling well, have fever',
-    status: 'pending',
-    appliedOn: '2023-05-19',
-  },
-  {
-    id: '2',
-    employeeId: '2',
-    employeeName: 'Jane Doe',
-    type: 'vacation',
-    startDate: '2023-06-01',
-    endDate: '2023-06-07',
-    reason: 'Family vacation',
-    status: 'approved',
-    appliedOn: '2023-05-15',
-  },
-  {
-    id: '3',
-    employeeId: '3',
-    employeeName: 'Robert Wilson',
-    type: 'casual',
-    startDate: '2023-05-25',
-    endDate: '2023-05-25',
-    reason: 'Personal work',
-    status: 'pending',
-    appliedOn: '2023-05-22',
-  },
-  {
-    id: '4',
-    employeeId: '4',
-    employeeName: 'Sarah Johnson',
-    type: 'sick',
-    startDate: '2023-05-18',
-    endDate: '2023-05-19',
-    reason: 'Doctor appointment and rest',
-    status: 'rejected',
-    appliedOn: '2023-05-17',
-  },
-  {
-    id: '5',
-    employeeId: '5',
-    employeeName: 'Michael Brown',
-    type: 'other',
-    startDate: '2023-05-30',
-    endDate: '2023-05-30',
-    reason: 'Family event',
-    status: 'approved',
-    appliedOn: '2023-05-20',
-  },
-];
+import { leaveService } from '@/services/leaveService';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface LeaveTableProps {
   onApplyLeave: () => void;
+  isLoading?: boolean;
+  leaveData?: Leave[];
 }
 
-const LeaveTable = ({ onApplyLeave }: LeaveTableProps) => {
+const LeaveTable = ({ 
+  onApplyLeave, 
+  isLoading = false,
+  leaveData = []
+}: LeaveTableProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [leaves] = useState<Leave[]>(mockLeaves);
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const isAdmin = user?.role === 'admin';
   const isHR = user?.role === 'hr';
   const canApprove = isAdmin || isHR;
 
+  // Mutation for approving leave
+  const approveLeaveMutation = useMutation({
+    mutationFn: (leaveId: string) => leaveService.updateLeaveStatus(leaveId, 'approved'),
+    onSuccess: () => {
+      toast.success('Leave request approved');
+      queryClient.invalidateQueries({ queryKey: ['leaves'] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to approve leave: ${error.message}`);
+    }
+  });
+
+  // Mutation for rejecting leave
+  const rejectLeaveMutation = useMutation({
+    mutationFn: (leaveId: string) => leaveService.updateLeaveStatus(leaveId, 'rejected'),
+    onSuccess: () => {
+      toast.success('Leave request rejected');
+      queryClient.invalidateQueries({ queryKey: ['leaves'] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to reject leave: ${error.message}`);
+    }
+  });
+
   const handleApprove = (leaveId: string) => {
-    // In a real app, this would update the leave status via an API
-    toast.success('Leave request approved');
+    approveLeaveMutation.mutate(leaveId);
   };
 
   const handleReject = (leaveId: string) => {
-    // In a real app, this would update the leave status via an API
-    toast.success('Leave request rejected');
+    rejectLeaveMutation.mutate(leaveId);
   };
 
-  const filteredLeaves = leaves.filter((leave) =>
+  const filteredLeaves = leaveData.filter((leave) =>
     (leave.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     leave.reason.toLowerCase().includes(searchTerm.toLowerCase())) &&
     (statusFilter === 'all' || leave.status === statusFilter)
@@ -198,7 +170,20 @@ const LeaveTable = ({ onApplyLeave }: LeaveTableProps) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredLeaves.length === 0 ? (
+            {isLoading ? (
+              <>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                    {canApprove && <TableCell><Skeleton className="h-6 w-16" /></TableCell>}
+                  </TableRow>
+                ))}
+              </>
+            ) : filteredLeaves.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={canApprove ? 6 : 5} className="text-center py-8 text-muted-foreground">
                   No leave requests found. Try adjusting your search.
@@ -238,6 +223,7 @@ const LeaveTable = ({ onApplyLeave }: LeaveTableProps) => {
                               variant="outline" 
                               className="text-green-600 border-green-600 hover:bg-green-50"
                               onClick={() => handleApprove(leave.id)}
+                              disabled={approveLeaveMutation.isPending}
                             >
                               <Check className="h-4 w-4" />
                               <span className="sr-only">Approve</span>
@@ -247,6 +233,7 @@ const LeaveTable = ({ onApplyLeave }: LeaveTableProps) => {
                               variant="outline" 
                               className="text-red-600 border-red-600 hover:bg-red-50"
                               onClick={() => handleReject(leave.id)}
+                              disabled={rejectLeaveMutation.isPending}
                             >
                               <X className="h-4 w-4" />
                               <span className="sr-only">Reject</span>

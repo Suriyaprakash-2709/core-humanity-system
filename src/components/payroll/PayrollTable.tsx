@@ -30,105 +30,49 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/components/ui/sonner';
-
-// Mock payroll data
-const mockPayrolls: Payroll[] = [
-  {
-    id: '1',
-    employeeId: '1',
-    employeeName: 'John Smith',
-    month: '05',
-    year: '2023',
-    basic: 5000,
-    hra: 2000,
-    allowances: 1500,
-    deductions: 1000,
-    netSalary: 7500,
-    status: 'paid',
-  },
-  {
-    id: '2',
-    employeeId: '2',
-    employeeName: 'Jane Doe',
-    month: '05',
-    year: '2023',
-    basic: 6000,
-    hra: 2400,
-    allowances: 1800,
-    deductions: 1200,
-    netSalary: 9000,
-    status: 'paid',
-  },
-  {
-    id: '3',
-    employeeId: '3',
-    employeeName: 'Robert Wilson',
-    month: '05',
-    year: '2023',
-    basic: 4500,
-    hra: 1800,
-    allowances: 1350,
-    deductions: 900,
-    netSalary: 6750,
-    status: 'processed',
-  },
-  {
-    id: '4',
-    employeeId: '4',
-    employeeName: 'Sarah Johnson',
-    month: '05',
-    year: '2023',
-    basic: 5500,
-    hra: 2200,
-    allowances: 1650,
-    deductions: 1100,
-    netSalary: 8250,
-    status: 'processed',
-  },
-  {
-    id: '5',
-    employeeId: '5',
-    employeeName: 'Michael Brown',
-    month: '05',
-    year: '2023',
-    basic: 5200,
-    hra: 2080,
-    allowances: 1560,
-    deductions: 1040,
-    netSalary: 7800,
-    status: 'pending',
-  },
-];
+import { payrollService } from '@/services/payrollService';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface PayrollTableProps {
   onUploadPayslip: () => void;
+  isLoading?: boolean;
+  payrollData?: Payroll[];
+  month: string;
+  year: string;
+  onMonthChange: (month: string) => void;
+  onYearChange: (year: string) => void;
 }
 
-const PayrollTable = ({ onUploadPayslip }: PayrollTableProps) => {
+const PayrollTable = ({ 
+  onUploadPayslip, 
+  isLoading = false,
+  payrollData = [],
+  month,
+  year,
+  onMonthChange,
+  onYearChange
+}: PayrollTableProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [month, setMonth] = useState('05'); // Default to May
-  const [year, setYear] = useState('2023'); // Default to 2023
-  const [payrolls] = useState<Payroll[]>(mockPayrolls);
   
   const { user } = useAuth();
   const isEmployee = user?.role === 'employee';
 
   const handleDownloadPayslip = (payrollId: string) => {
-    // In a real app, this would download the payslip
-    toast.success('Payslip downloaded successfully');
+    payrollService.downloadPayslip(payrollId)
+      .then(() => toast.success('Payslip downloaded successfully'))
+      .catch(() => toast.error('Failed to download payslip'));
   };
 
   const handleSendEmail = (payrollId: string) => {
-    // In a real app, this would send the payslip via email
-    toast.success('Payslip sent to email successfully');
+    payrollService.sendPayslipEmail(payrollId)
+      .then(() => toast.success('Payslip sent to email successfully'))
+      .catch(() => toast.error('Failed to send payslip email'));
   };
 
-  const filteredPayrolls = payrolls.filter((payroll) =>
+  const filteredPayrolls = payrollData.filter((payroll) =>
     payroll.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    (statusFilter === 'all' || payroll.status === statusFilter) &&
-    payroll.month === month &&
-    payroll.year === year
+    (statusFilter === 'all' || payroll.status === statusFilter)
   );
 
   const getStatusBadge = (status: string) => {
@@ -188,7 +132,7 @@ const PayrollTable = ({ onUploadPayslip }: PayrollTableProps) => {
 
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex items-center space-x-2 w-full md:w-auto">
-          <Select value={month} onValueChange={setMonth}>
+          <Select value={month} onValueChange={onMonthChange}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Month" />
             </SelectTrigger>
@@ -201,7 +145,7 @@ const PayrollTable = ({ onUploadPayslip }: PayrollTableProps) => {
             </SelectContent>
           </Select>
 
-          <Select value={year} onValueChange={setYear}>
+          <Select value={year} onValueChange={onYearChange}>
             <SelectTrigger className="w-[100px]">
               <SelectValue placeholder="Year" />
             </SelectTrigger>
@@ -252,7 +196,23 @@ const PayrollTable = ({ onUploadPayslip }: PayrollTableProps) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredPayrolls.length === 0 ? (
+            {isLoading ? (
+              <>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-6 w-20 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-6 w-8 ml-auto" /></TableCell>
+                  </TableRow>
+                ))}
+              </>
+            ) : filteredPayrolls.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   No payroll records found. Try adjusting your search.

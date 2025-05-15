@@ -6,26 +6,40 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
+import { useMutation } from '@tanstack/react-query';
+import { api } from '@/services/api';
 
 const LoginForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      const success = await login(email, password);
+  const loginMutation = useMutation({
+    mutationFn: async (credentials: { email: string, password: string }) => {
+      try {
+        // In a real app, this would call the actual login API endpoint
+        const response = await api.post('/auth/login', credentials);
+        return response;
+      } catch (error) {
+        throw new Error('Login failed');
+      }
+    },
+    onSuccess: (data) => {
+      // Call the login function from AuthContext with the response data
+      const success = login(email, password);
       if (success) {
         navigate('/dashboard');
       }
-    } finally {
-      setLoading(false);
+    },
+    onError: (error) => {
+      console.error('Login error:', error);
     }
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    loginMutation.mutate({ email, password });
   };
 
   return (
@@ -74,8 +88,8 @@ const LoginForm = () => {
           </div>
         </CardContent>
         <CardFooter>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Logging in..." : "Login"}
+          <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+            {loginMutation.isPending ? "Logging in..." : "Login"}
           </Button>
         </CardFooter>
       </form>

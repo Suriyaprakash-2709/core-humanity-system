@@ -1,6 +1,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 interface ActivityItem {
@@ -15,62 +16,10 @@ interface ActivityItem {
   type: 'leave' | 'attendance' | 'employee' | 'payroll';
 }
 
-const activityItems: ActivityItem[] = [
-  {
-    id: '1',
-    user: {
-      name: 'John Employee',
-      avatar: 'https://i.pravatar.cc/150?img=33',
-    },
-    action: 'requested',
-    target: 'sick leave for 2 days',
-    timestamp: '10 minutes ago',
-    type: 'leave',
-  },
-  {
-    id: '2',
-    user: {
-      name: 'HR Manager',
-      avatar: 'https://i.pravatar.cc/150?img=45',
-    },
-    action: 'approved',
-    target: 'Jane Smith\'s leave request',
-    timestamp: '1 hour ago',
-    type: 'leave',
-  },
-  {
-    id: '3',
-    user: {
-      name: 'Admin User',
-      avatar: 'https://i.pravatar.cc/150?img=65',
-    },
-    action: 'processed',
-    target: 'April payroll for all employees',
-    timestamp: '3 hours ago',
-    type: 'payroll',
-  },
-  {
-    id: '4',
-    user: {
-      name: 'Mary Johnson',
-    },
-    action: 'marked',
-    target: 'attendance for today',
-    timestamp: '5 hours ago',
-    type: 'attendance',
-  },
-  {
-    id: '5',
-    user: {
-      name: 'Admin User',
-      avatar: 'https://i.pravatar.cc/150?img=65',
-    },
-    action: 'added',
-    target: 'a new employee Robert Wilson',
-    timestamp: '1 day ago',
-    type: 'employee',
-  },
-];
+interface RecentActivityProps {
+  activities?: ActivityItem[];
+  isLoading?: boolean;
+}
 
 const getActivityColor = (type: ActivityItem['type']) => {
   switch (type) {
@@ -87,7 +36,7 @@ const getActivityColor = (type: ActivityItem['type']) => {
   }
 };
 
-const RecentActivity = () => {
+const RecentActivity = ({ activities = [], isLoading = false }: RecentActivityProps) => {
   return (
     <Card>
       <CardHeader>
@@ -97,29 +46,59 @@ const RecentActivity = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ul className="space-y-4">
-          {activityItems.map((item) => (
-            <li key={item.id} className="flex items-start space-x-3">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={item.user.avatar} />
-                <AvatarFallback>{item.user.name.substring(0, 2)}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center gap-1">
-                  <span className="font-medium">{item.user.name}</span>
-                  <span className="text-sm text-muted-foreground">{item.action}</span>
-                  <span className="font-medium">{item.target}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="text-xs text-muted-foreground">{item.timestamp}</span>
-                  <span className={cn("text-xs px-2 py-0.5 ml-2 rounded-full", getActivityColor(item.type))}>
-                    {item.type}
-                  </span>
-                </div>
+        {isLoading ? (
+          <div className="space-y-4">
+            <div className="flex items-start space-x-3">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
               </div>
-            </li>
-          ))}
-        </ul>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+            </div>
+          </div>
+        ) : activities.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            No recent activities found.
+          </div>
+        ) : (
+          <ul className="space-y-4">
+            {activities.map((item) => (
+              <li key={item.id} className="flex items-start space-x-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={item.user.avatar} />
+                  <AvatarFallback>{item.user.name.substring(0, 2)}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium">{item.user.name}</span>
+                    <span className="text-sm text-muted-foreground">{item.action}</span>
+                    <span className="font-medium">{item.target}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="text-xs text-muted-foreground">{item.timestamp}</span>
+                    <span className={cn("text-xs px-2 py-0.5 ml-2 rounded-full", getActivityColor(item.type))}>
+                      {item.type}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );
