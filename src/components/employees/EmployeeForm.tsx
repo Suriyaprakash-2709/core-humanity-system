@@ -20,6 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { toast } from '@/components/ui/sonner';
+import { employeeService } from '@/services/employeeService';
 
 interface EmployeeFormProps {
   employee?: Employee;
@@ -51,6 +52,7 @@ const roles = [
 
 const EmployeeForm = ({ employee, onSubmit, onCancel }: EmployeeFormProps) => {
   const isEdit = !!employee;
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState<Partial<Employee>>(
     employee || {
       name: '',
@@ -70,7 +72,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel }: EmployeeFormProps) => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Simple validation
@@ -79,8 +81,23 @@ const EmployeeForm = ({ employee, onSubmit, onCancel }: EmployeeFormProps) => {
       return;
     }
     
-    onSubmit(form);
-    toast.success(`Employee ${isEdit ? 'updated' : 'added'} successfully`);
+    setIsSubmitting(true);
+    
+    try {
+      if (isEdit && employee?.id) {
+        await employeeService.updateEmployee(employee.id, form);
+        toast.success('Employee updated successfully');
+      } else {
+        await employeeService.createEmployee(form);
+        toast.success('Employee added successfully');
+      }
+      
+      onSubmit(form);
+    } catch (error: any) {
+      toast.error(`Failed to ${isEdit ? 'update' : 'create'} employee: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -190,10 +207,14 @@ const EmployeeForm = ({ employee, onSubmit, onCancel }: EmployeeFormProps) => {
           </div>
         </CardContent>
         <CardFooter className="flex justify-between">
-          <Button variant="outline" type="button" onClick={onCancel}>
+          <Button variant="outline" type="button" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit">{isEdit ? 'Update' : 'Add Employee'}</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 
+              (isEdit ? 'Updating...' : 'Adding...') : 
+              (isEdit ? 'Update' : 'Add Employee')}
+          </Button>
         </CardFooter>
       </form>
     </Card>

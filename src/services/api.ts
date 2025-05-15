@@ -35,4 +35,24 @@ export const api = {
   delete: (endpoint: string) => fetchData(endpoint, {
     method: 'DELETE',
   }),
+  
+  upload: async (endpoint: string, file: File, fieldName: string = 'file') => {
+    const formData = new FormData();
+    formData.append(fieldName, file);
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('hrmsToken')}`,
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Upload failed');
+    }
+    
+    return response.json();
+  }
 };

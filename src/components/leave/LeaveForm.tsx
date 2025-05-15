@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +20,8 @@ import {
 } from '@/components/ui/select';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/context/AuthContext';
+import { leaveService } from '@/services/leaveService';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface LeaveFormProps {
   onSubmit: () => void;
@@ -33,6 +34,35 @@ const LeaveForm = ({ onSubmit, onCancel }: LeaveFormProps) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Fetch leave balance
+  const { data: leaveBalanceData, isLoading: isLoadingBalance } = useQuery({
+    queryKey: ['leaveBalance'],
+    queryFn: leaveService.getLeaveBalance,
+  });
+
+  const leaveBalance = leaveBalanceData?.data || {
+    casual: 0,
+    sick: 0,
+    vacation: 0,
+    total: 0,
+  };
+
+  // Apply leave mutation
+  const applyLeaveMutation = useMutation({
+    mutationFn: leaveService.applyLeave,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leaveBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['leaves'] });
+      toast.success('Leave request submitted successfully');
+      onSubmit();
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to submit leave request: ${error.message}`);
+    }
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,17 +81,14 @@ const LeaveForm = ({ onSubmit, onCancel }: LeaveFormProps) => {
       return;
     }
     
-    // In a real app, this would submit to an API
-    toast.success('Leave request submitted successfully');
-    onSubmit();
-  };
-
-  // Calculate available leave balance (mock data for demo)
-  const leaveBalance = {
-    casual: 7,
-    sick: 5,
-    vacation: 10,
-    total: 22,
+    setIsSubmitting(true);
+    
+    applyLeaveMutation.mutate({
+      leaveType,
+      startDate,
+      endDate,
+      reason
+    });
   };
 
   return (
@@ -76,24 +103,28 @@ const LeaveForm = ({ onSubmit, onCancel }: LeaveFormProps) => {
         <CardContent className="space-y-4">
           <div className="bg-blue-50 p-4 rounded-md text-sm mb-4">
             <p className="font-medium text-blue-800">Leave Balance</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-              <div>
-                <span className="text-blue-600">Casual:</span>
-                <span className="font-medium ml-1">{leaveBalance.casual} days</span>
+            {isLoadingBalance ? (
+              <p className="text-blue-600 mt-1">Loading balance...</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                <div>
+                  <span className="text-blue-600">Casual:</span>
+                  <span className="font-medium ml-1">{leaveBalance.casual} days</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Sick:</span>
+                  <span className="font-medium ml-1">{leaveBalance.sick} days</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Vacation:</span>
+                  <span className="font-medium ml-1">{leaveBalance.vacation} days</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Total:</span>
+                  <span className="font-medium ml-1">{leaveBalance.total} days</span>
+                </div>
               </div>
-              <div>
-                <span className="text-blue-600">Sick:</span>
-                <span className="font-medium ml-1">{leaveBalance.sick} days</span>
-              </div>
-              <div>
-                <span className="text-blue-600">Vacation:</span>
-                <span className="font-medium ml-1">{leaveBalance.vacation} days</span>
-              </div>
-              <div>
-                <span className="text-blue-600">Total:</span>
-                <span className="font-medium ml-1">{leaveBalance.total} days</span>
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -150,10 +181,12 @@ const LeaveForm = ({ onSubmit, onCancel }: LeaveFormProps) => {
           </div>
         </CardContent>
         <CardFooter className="flex justify-between">
-          <Button variant="outline" type="button" onClick={onCancel}>
+          <Button variant="outline" type="button" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit">Submit Request</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Submitting...' : 'Submit Request'}
+          </Button>
         </CardFooter>
       </form>
     </Card>

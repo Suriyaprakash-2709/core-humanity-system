@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -19,15 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from '@/components/ui/sonner';
-
-// Mock employee list for the dropdown
-const mockEmployees = [
-  { id: '1', name: 'John Smith' },
-  { id: '2', name: 'Jane Doe' },
-  { id: '3', name: 'Robert Wilson' },
-  { id: '4', name: 'Sarah Johnson' },
-  { id: '5', name: 'Michael Brown' },
-];
+import { attendanceService } from '@/services/attendanceService';
+import { employeeService } from '@/services/employeeService';
+import { useQuery, useMutation } from '@tanstack/react-query';
 
 interface AttendanceFormProps {
   onSubmit: () => void;
@@ -41,8 +35,36 @@ const AttendanceForm = ({ onSubmit, onCancel, isBulk = false }: AttendanceFormPr
   const [status, setStatus] = useState('present');
   const [checkIn, setCheckIn] = useState('09:00');
   const [checkOut, setCheckOut] = useState('17:00');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch employees for dropdown
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees'],
+    queryFn: employeeService.getAllEmployees,
+    enabled: !isBulk, // Only fetch if not bulk mode
+  });
+
+  const employees = employeesData?.data || [];
+
+  // Attendance mutations
+  const attendanceMutation = useMutation({
+    mutationFn: (data: any) => {
+      if (isBulk) {
+        return attendanceService.markBulkAttendance(data);
+      } else {
+        return attendanceService.markAttendance(data);
+      }
+    },
+    onSuccess: () => {
+      toast.success(`Attendance ${isBulk ? 'bulk ' : ''}marked successfully`);
+      onSubmit();
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to mark attendance: ${error.message}`);
+    }
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!isBulk && !selectedEmployee) {
@@ -50,9 +72,20 @@ const AttendanceForm = ({ onSubmit, onCancel, isBulk = false }: AttendanceFormPr
       return;
     }
     
-    // In a real app, this would submit to an API
-    toast.success(`Attendance ${isBulk ? 'bulk ' : ''}marked successfully`);
-    onSubmit();
+    setIsSubmitting(true);
+    
+    try {
+      const data = {
+        ...(isBulk ? {} : { employeeId: selectedEmployee }),
+        date,
+        status,
+        ...(status !== 'absent' ? { checkIn, checkOut } : {})
+      };
+      
+      attendanceMutation.mutate(data);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -75,7 +108,7 @@ const AttendanceForm = ({ onSubmit, onCancel, isBulk = false }: AttendanceFormPr
                   <SelectValue placeholder="Select employee" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockEmployees.map((employee) => (
+                  {employees.map((employee: any) => (
                     <SelectItem key={employee.id} value={employee.id}>
                       {employee.name}
                     </SelectItem>
@@ -144,11 +177,11 @@ const AttendanceForm = ({ onSubmit, onCancel, isBulk = false }: AttendanceFormPr
           )}
         </CardContent>
         <CardFooter className="flex justify-between">
-          <Button variant="outline" type="button" onClick={onCancel}>
+          <Button variant="outline" type="button" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit">
-            {isBulk ? 'Mark Bulk Attendance' : 'Mark Attendance'}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Submitting...' : (isBulk ? 'Mark Bulk Attendance' : 'Mark Attendance')}
           </Button>
         </CardFooter>
       </form>
