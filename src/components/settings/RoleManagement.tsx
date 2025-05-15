@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { RolePermission, Role } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,127 +13,68 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/sonner';
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Mock role permissions data
-const initialRolePermissions: RolePermission[] = [
+interface RoleManagementProps {
+  rolePermissions?: RolePermission[];
+  isLoading?: boolean;
+  onSave: (rolePermissions: RolePermission[]) => void;
+}
+
+// Default permissions structure if API call fails
+const defaultRolePermissions: RolePermission[] = [
   {
     role: 'admin',
     permissions: {
-      employees: {
-        view: true,
-        create: true,
-        edit: true,
-        delete: true,
-      },
-      attendance: {
-        view: true,
-        mark: true,
-        edit: true,
-      },
-      leave: {
-        view: true,
-        apply: true,
-        approve: true,
-      },
-      payroll: {
-        view: true,
-        generate: true,
-        approve: true,
-      },
-      reports: {
-        view: true,
-        export: true,
-      },
-      settings: {
-        view: true,
-        edit: true,
-      },
+      employees: { view: true, create: true, edit: true, delete: true },
+      attendance: { view: true, mark: true, edit: true },
+      leave: { view: true, apply: true, approve: true },
+      payroll: { view: true, generate: true, approve: true },
+      reports: { view: true, export: true },
+      settings: { view: true, edit: true },
     },
   },
   {
     role: 'hr',
     permissions: {
-      employees: {
-        view: true,
-        create: true,
-        edit: true,
-        delete: false,
-      },
-      attendance: {
-        view: true,
-        mark: true,
-        edit: true,
-      },
-      leave: {
-        view: true,
-        apply: true,
-        approve: true,
-      },
-      payroll: {
-        view: true,
-        generate: true,
-        approve: false,
-      },
-      reports: {
-        view: true,
-        export: true,
-      },
-      settings: {
-        view: false,
-        edit: false,
-      },
+      employees: { view: true, create: true, edit: true, delete: false },
+      attendance: { view: true, mark: true, edit: true },
+      leave: { view: true, apply: true, approve: true },
+      payroll: { view: true, generate: true, approve: false },
+      reports: { view: true, export: true },
+      settings: { view: false, edit: false },
     },
   },
   {
     role: 'employee',
     permissions: {
-      employees: {
-        view: false,
-        create: false,
-        edit: false,
-        delete: false,
-      },
-      attendance: {
-        view: true,
-        mark: true,
-        edit: false,
-      },
-      leave: {
-        view: true,
-        apply: true,
-        approve: false,
-      },
-      payroll: {
-        view: true,
-        generate: false,
-        approve: false,
-      },
-      reports: {
-        view: false,
-        export: false,
-      },
-      settings: {
-        view: false,
-        edit: false,
-      },
+      employees: { view: false, create: false, edit: false, delete: false },
+      attendance: { view: true, mark: true, edit: false },
+      leave: { view: true, apply: true, approve: false },
+      payroll: { view: true, generate: false, approve: false },
+      reports: { view: false, export: false },
+      settings: { view: false, edit: false },
     },
   },
 ];
 
-interface RoleManagementProps {
-  onSave: (rolePermissions: RolePermission[]) => void;
-}
-
-const RoleManagement = ({ onSave }: RoleManagementProps) => {
-  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>(initialRolePermissions);
+const RoleManagement = ({ rolePermissions, isLoading, onSave }: RoleManagementProps) => {
+  const [permissions, setPermissions] = useState<RolePermission[]>(defaultRolePermissions);
   const [activeTab, setActiveTab] = useState<Role>('admin');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (rolePermissions) {
+      setPermissions(rolePermissions);
+    }
+  }, [rolePermissions]);
 
   const handlePermissionChange = (
     module: keyof RolePermission['permissions'],
     action: string,
     checked: boolean
   ) => {
-    setRolePermissions((prevPermissions) => {
+    setPermissions((prevPermissions) => {
       return prevPermissions.map((rolePermission) => {
         if (rolePermission.role === activeTab) {
           return {
@@ -154,13 +94,43 @@ const RoleManagement = ({ onSave }: RoleManagementProps) => {
   };
 
   const handleSubmit = () => {
-    onSave(rolePermissions);
-    toast.success('Role permissions updated successfully');
+    setIsSubmitting(true);
+    try {
+      onSave(permissions);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const currentRolePermission = rolePermissions.find(
+  const currentRolePermission = permissions.find(
     (rp) => rp.role === activeTab
   );
+
+  if (isLoading) {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <Skeleton className="h-8 w-64 mb-2" />
+          <Skeleton className="h-4 w-96" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-10 w-full mb-6" />
+          <div className="space-y-6">
+            {Array(4).fill(0).map((_, i) => (
+              <div key={i}>
+                <Skeleton className="h-6 w-48 mb-4" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Array(4).fill(0).map((_, j) => (
+                    <Skeleton key={j} className="h-8" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full">
@@ -384,7 +354,9 @@ const RoleManagement = ({ onSave }: RoleManagementProps) => {
         </Tabs>
       </CardContent>
       <CardFooter className="flex justify-end">
-        <Button onClick={handleSubmit}>Save Permissions</Button>
+        <Button onClick={handleSubmit} disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Save Permissions"}
+        </Button>
       </CardFooter>
     </Card>
   );

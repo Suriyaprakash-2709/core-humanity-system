@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -13,43 +13,95 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/sonner';
 import { Company } from '@/lib/types';
+import { settingsService } from '@/services/settingsService';
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CompanyFormProps {
+  company?: Company;
+  isLoading?: boolean;
   onSave: (company: Company) => void;
 }
 
-// Mock company data
-const initialCompany: Company = {
-  name: 'Acme Corporation',
-  address: '123 Business Street, Suite 100, Business City, BZ 12345',
-  email: 'info@acmecorp.com',
-  phone: '(555) 123-4567',
-  website: 'https://www.acmecorp.com',
-  taxId: 'TAX-12345678',
-};
+const CompanyForm = ({ company, isLoading, onSave }: CompanyFormProps) => {
+  const [form, setForm] = useState<Company>({
+    name: '',
+    address: '',
+    email: '',
+    phone: '',
+    website: '',
+    taxId: '',
+  });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-const CompanyForm = ({ onSave }: CompanyFormProps) => {
-  const [company, setCompany] = useState<Company>(initialCompany);
+  useEffect(() => {
+    if (company) {
+      setForm(company);
+    }
+  }, [company]);
 
   const handleChange = (field: keyof Company, value: string) => {
-    setCompany((prev) => ({
+    setForm((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLogoUpload = async (file: File) => {
+    try {
+      const response = await settingsService.uploadCompanyLogo(file);
+      return response.data.logo;
+    } catch (error) {
+      toast.error("Failed to upload logo");
+      return '';
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Simple validation
-    if (!company.name || !company.address || !company.email || !company.phone) {
+    if (!form.name || !form.address || !form.email || !form.phone) {
       toast.error('Please fill all required fields');
       return;
     }
     
-    onSave(company);
-    toast.success('Company information saved successfully');
+    setIsSubmitting(true);
+    
+    try {
+      let updatedCompany = { ...form };
+      
+      if (logoFile) {
+        const logoUrl = await handleLogoUpload(logoFile);
+        updatedCompany.logo = logoUrl;
+      }
+      
+      onSave(updatedCompany);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <Skeleton className="h-8 w-64 mb-2" />
+          <Skeleton className="h-4 w-96" />
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20 md:col-span-2" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full">
@@ -66,7 +118,7 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
               <Label htmlFor="name">Company Name*</Label>
               <Input
                 id="name"
-                value={company.name}
+                value={form.name}
                 onChange={(e) => handleChange('name', e.target.value)}
                 required
               />
@@ -77,7 +129,7 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
               <Input
                 id="email"
                 type="email"
-                value={company.email}
+                value={form.email}
                 onChange={(e) => handleChange('email', e.target.value)}
                 required
               />
@@ -87,7 +139,7 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
               <Label htmlFor="phone">Phone Number*</Label>
               <Input
                 id="phone"
-                value={company.phone}
+                value={form.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
                 required
               />
@@ -98,7 +150,7 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
               <Input
                 id="website"
                 type="url"
-                value={company.website}
+                value={form.website}
                 onChange={(e) => handleChange('website', e.target.value)}
               />
             </div>
@@ -107,7 +159,7 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
               <Label htmlFor="address">Business Address*</Label>
               <Input
                 id="address"
-                value={company.address}
+                value={form.address}
                 onChange={(e) => handleChange('address', e.target.value)}
                 required
               />
@@ -117,7 +169,7 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
               <Label htmlFor="taxId">Tax ID / Business Registration</Label>
               <Input
                 id="taxId"
-                value={company.taxId}
+                value={form.taxId}
                 onChange={(e) => handleChange('taxId', e.target.value)}
               />
             </div>
@@ -127,9 +179,9 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
             <Label htmlFor="logo">Company Logo</Label>
             <div className="flex items-center gap-4 mt-2">
               <div className="h-16 w-16 bg-gray-100 rounded flex items-center justify-center">
-                {company.logo ? (
+                {form.logo ? (
                   <img
-                    src={company.logo}
+                    src={form.logo}
                     alt="Company Logo"
                     className="max-h-full max-w-full"
                   />
@@ -143,7 +195,8 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
                 accept="image/*"
                 onChange={(e) => {
                   if (e.target.files && e.target.files.length > 0) {
-                    // In a real app, this would upload to a server and get a URL
+                    setLogoFile(e.target.files[0]);
+                    // Create a preview
                     const fakeUrl = URL.createObjectURL(e.target.files[0]);
                     handleChange('logo', fakeUrl);
                   }
@@ -152,7 +205,10 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => handleChange('logo', '')}
+                onClick={() => {
+                  setLogoFile(null);
+                  handleChange('logo', '');
+                }}
               >
                 Remove
               </Button>
@@ -163,7 +219,9 @@ const CompanyForm = ({ onSave }: CompanyFormProps) => {
           </div>
         </CardContent>
         <CardFooter className="flex justify-end">
-          <Button type="submit">Save Changes</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Save Changes"}
+          </Button>
         </CardFooter>
       </form>
     </Card>
