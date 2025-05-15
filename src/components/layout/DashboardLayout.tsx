@@ -19,7 +19,7 @@ const DashboardLayout = () => {
   if (!isAuthenticated) return null;
 
   return (
-    <SidebarProvider defaultCollapsed={false}>
+    <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gray-50">
         <AppSidebar />
         <div className="flex flex-col flex-1">
