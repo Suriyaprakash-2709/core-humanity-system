@@ -24,10 +24,13 @@ import {
 } from '@/components/ui/sidebar';
 
 const AppSidebar = () => {
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
   const { user } = useAuth();
+  
+  // Check if sidebar is collapsed based on state
+  const collapsed = state === "collapsed";
 
   // Define routes based on user role
   const routes = [
@@ -86,7 +89,7 @@ const AppSidebar = () => {
     <Sidebar
       className={cn('h-screen transition-all duration-300 ease-in-out border-r border-gray-200', 
         collapsed ? 'w-16' : 'w-64')}
-      collapsible
+      collapsible="icon"
     >
       <SidebarTrigger className="m-2 self-end" />
 
